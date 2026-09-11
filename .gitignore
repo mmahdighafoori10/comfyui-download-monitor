@@ -1,0 +1,9 @@
+dist/
+work/
+*.log
+*.tmp
+*.part
+.vs/
+bin/
+obj/
+

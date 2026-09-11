@@ -1,0 +1,54 @@
+name: Build Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Test restart-safe resume
+        shell: powershell
+        run: |
+          $result = & .\tests\Test-ResumeWorker.ps1
+          if (-not $result.Passed) {
+            throw "Resume integration test failed."
+          }
+          $result | Format-List
+
+      - name: Test terminal installer
+        shell: powershell
+        run: .\install.ps1 -SelfTest
+
+      - name: Build Windows executables
+        shell: powershell
+        run: .\Build-WindowsApp.ps1
+
+      - name: Write SHA-256 checksum
+        shell: powershell
+        run: |
+          $asset = '.\dist\ComfyUIDownloadMonitorSetup.exe'
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset).Hash.ToLowerInvariant()
+          "$hash  ComfyUIDownloadMonitorSetup.exe" |
+            Set-Content -LiteralPath '.\dist\ComfyUIDownloadMonitorSetup.exe.sha256' -Encoding Ascii
+
+      - name: Publish GitHub Release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create '${{ github.ref_name }}' `
+            '.\dist\ComfyUIDownloadMonitorSetup.exe#Windows installer' `
+            '.\dist\ComfyUIDownloadMonitorSetup.exe.sha256#SHA-256 checksum' `
+            --title "ComfyUI Download Monitor ${{ github.ref_name }}" `
+            --generate-notes `
+            --latest
