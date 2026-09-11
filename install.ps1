@@ -58,36 +58,36 @@ function Invoke-DownloadFile {
 function Install-DotNetFramework48 {
     param([string]$TemporaryDirectory)
 
-    Write-Step '.NET Framework 4.8 پیدا نشد؛ نسخه رسمی Microsoft نصب می‌شود'
+    Write-Step '.NET Framework 4.8 was not found; installing the official Microsoft package'
     $installerPath = Join-Path $TemporaryDirectory 'ndp48-web.exe'
     Invoke-DownloadFile -Uri $dotNetWebInstallerUrl -Destination $installerPath
 
     $signature = Get-AuthenticodeSignature -LiteralPath $installerPath
     if ($signature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
         $signature.SignerCertificate.Subject -notmatch 'Microsoft') {
-        throw 'امضای دیجیتال نصب‌کننده .NET Framework معتبر یا متعلق به Microsoft نیست.'
+        throw 'The .NET Framework installer does not have a valid Microsoft digital signature.'
     }
 
     $process = Start-Process -FilePath $installerPath -ArgumentList '/q', '/norestart' -Verb RunAs -Wait -PassThru
     if ($process.ExitCode -eq 3010) {
-        throw '.NET Framework نصب شد، اما ویندوز باید ری‌استارت شود. پس از ری‌استارت همین فرمان را دوباره اجرا کنید.'
+        throw '.NET Framework was installed, but Windows must restart. Run this command again after restarting.'
     }
     if ($process.ExitCode -ne 0) {
-        throw "نصب .NET Framework با کد $($process.ExitCode) پایان یافت."
+        throw ".NET Framework setup exited with code $($process.ExitCode)."
     }
     if (-not (Test-DotNetFramework48)) {
-        throw '.NET Framework 4.8 پس از نصب شناسایی نشد.'
+        throw '.NET Framework 4.8 was not detected after setup completed.'
     }
 }
 
 if ($env:OS -ne 'Windows_NT') {
-    throw "$productName فقط روی Windows پشتیبانی می‌شود."
+    throw "$productName is supported only on Windows."
 }
 if ($PSVersionTable.PSVersion.Major -lt 5) {
-    throw 'Windows PowerShell 5.1 یا جدیدتر لازم است.'
+    throw 'Windows PowerShell 5.1 or newer is required.'
 }
 if ($Repository -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
-    throw 'نام repository باید به شکل owner/repository باشد.'
+    throw 'Repository must use the owner/repository format.'
 }
 if ($SelfTest) {
     [pscustomobject]@{
@@ -109,7 +109,7 @@ $temporaryDirectory = Join-Path $temporaryParent ('ComfyUIDownloadMonitor-Instal
 $resolvedTemporaryDirectory = [System.IO.Path]::GetFullPath($temporaryDirectory)
 $expectedPrefix = $temporaryParent.TrimEnd('\') + '\ComfyUIDownloadMonitor-Install-'
 if (-not $resolvedTemporaryDirectory.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw 'مسیر موقت نصب معتبر نیست.'
+    throw 'The temporary installation path is invalid.'
 }
 
 try {
@@ -119,31 +119,31 @@ try {
         Install-DotNetFramework48 -TemporaryDirectory $resolvedTemporaryDirectory
     }
     else {
-        Write-Step '.NET Framework آماده است'
+        Write-Step '.NET Framework is ready'
     }
 
     $releaseBaseUrl = "https://github.com/$Repository/releases/latest/download"
     $setupPath = Join-Path $resolvedTemporaryDirectory $setupAssetName
     $checksumPath = Join-Path $resolvedTemporaryDirectory $checksumAssetName
 
-    Write-Step 'دریافت آخرین نسخه از GitHub Releases'
+    Write-Step 'Downloading the latest GitHub Release'
     Invoke-DownloadFile -Uri "$releaseBaseUrl/$setupAssetName" -Destination $setupPath
     Invoke-DownloadFile -Uri "$releaseBaseUrl/$checksumAssetName" -Destination $checksumPath
 
     $checksumText = Get-Content -LiteralPath $checksumPath -Raw
     if ($checksumText -notmatch '(?i)\b([0-9a-f]{64})\b') {
-        throw 'فایل checksum منتشرشده معتبر نیست.'
+        throw 'The published checksum file is invalid.'
     }
     $expectedHash = $matches[1].ToUpperInvariant()
     $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $setupPath).Hash
     if ($actualHash -ne $expectedHash) {
-        throw 'SHA-256 فایل Setup با مقدار منتشرشده در GitHub یکسان نیست.'
+        throw 'The Setup SHA-256 does not match the checksum published on GitHub.'
     }
-    Write-Step 'SHA-256 تأیید شد؛ نصب شروع می‌شود'
+    Write-Step 'SHA-256 verified; starting setup'
 
     $setupProcess = Start-Process -FilePath $setupPath -ArgumentList '--silent' -Wait -PassThru
     if ($setupProcess.ExitCode -ne 0) {
-        throw "Setup با کد $($setupProcess.ExitCode) پایان یافت."
+        throw "Setup exited with code $($setupProcess.ExitCode)."
     }
 
     $installDirectory = Join-Path $env:LOCALAPPDATA 'Programs\ComfyUI Download Monitor'
@@ -151,11 +151,11 @@ try {
     $receiptPath = Join-Path $installDirectory 'install-state.txt'
     if (-not (Test-Path -LiteralPath $launcherPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
-        throw 'نصب پایان یافت، اما فایل‌های برنامه در مسیر مورد انتظار پیدا نشدند.'
+        throw 'Setup completed, but the application files were not found at the expected path.'
     }
 
-    Write-Host "$productName با موفقیت نصب شد." -ForegroundColor Green
-    Write-Host "مسیر: $installDirectory"
+    Write-Host "$productName was installed successfully." -ForegroundColor Green
+    Write-Host "Path: $installDirectory"
     if (-not $NoLaunch) {
         Start-Process -FilePath $launcherPath | Out-Null
     }
